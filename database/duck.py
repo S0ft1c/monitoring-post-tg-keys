@@ -10,14 +10,14 @@ class DuckDB(object):
 
         # creating tables in database
         self.c.sql("""create table if not exists channels (
-        id integer primary key not null,
+        id string primary key,
         channel_name string,
         plus string, 
         minus string
         )""")
 
         self.c.sql("""create table if not exists chats (
-        id integer primary key,
+        id string primary key,
         chat_name string,
         )""")
 
