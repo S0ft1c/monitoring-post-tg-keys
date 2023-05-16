@@ -8,12 +8,17 @@ class DuckDB(object):
         self.conn = duckdb.connect('database.duckdb')
         self.c = self.conn.cursor()
 
+        self.c.sql("""create table if not exists containers (
+        container string,
+        plus string,
+        minus string,
+        )""")
+
         # creating tables in database
         self.c.sql("""create table if not exists channels (
         id string primary key,
         channel_name string,
-        plus string, 
-        minus string
+        container string,
         )""")
 
         self.c.sql("""create table if not exists chats (
@@ -24,10 +29,6 @@ class DuckDB(object):
     def sql_req(self, req: str):
         return self.c.sql(req)
 
-    # def insert_channels(self, data):
-    #     self.c.sql("""insert into chanells (chanells, plus, minus) values (
-    #             ?, ?, ?
-    #             )""", ())
 
     def __del__(self):
         self.conn.close()

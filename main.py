@@ -1,10 +1,9 @@
-from asyncio import run
 from telethon.tl.functions.channels import JoinChannelRequest
 import telethon
 from config import *
 from database import duck
 
-# cionfig data
+# config data
 api_id = id
 api_hash = hash
 
@@ -26,12 +25,15 @@ async def start_check_chat(event):
     peer_id = '-100' + str(event.original_update.message.peer_id.channel_id)
     print(peer_id)
 
-    # get plus and minus
-    plus = (db.sql_req(f"""select plus from channels where plus is not null and 
-                id = '{peer_id}'""").fetchone()[0]).split(";")
+    container_name = db.sql_req(f"""select container from channels where id='{peer_id}'""").fetchone()[0]
+    print(container_name)
 
-    minus = (db.sql_req(f"""select minus from channels where minus is not null and 
-                id = '{peer_id}'""").fetchone()[0]).split(";")
+    # get plus and minus
+    plus = (db.sql_req(f"""select plus from containers where plus is not null and 
+                container = '{container_name}'""").fetchone()[0]).split(";")
+
+    minus = (db.sql_req(f"""select minus from containers where minus is not null and 
+                container = '{container_name}'""").fetchone()[0]).split(";")
 
     print(plus, minus)
 
@@ -61,7 +63,7 @@ async def start_check_chat(event):
             out_peer_id = db.sql_req("""select id from chats""").fetchall()
             for chat in out_peer_id:  # send messages to all needed channels
                 print(chat)
-                response = await client.send_message(int(chat[0]), message='yes')
+                response = await client.forward_messages(int(chat[0]), event.message)
                 print(response)
 
 
@@ -76,10 +78,10 @@ async def main_receive(event):
         if "add_channel" in str(event.message.text):  # add_channel command
             # if it is add_channel
             msg = str(event.message.text).replace("!add_channel ", "")
-            channel_name, plus, minus = msg.split("|")
+            channel_name, container = msg.split("|")
 
-            db.sql_req(f"""insert into channels (id, channel_name, plus, minus) values (
-            {await client.get_peer_id(channel_name)}, '{channel_name}', '{plus}', '{minus}')""")
+            db.sql_req(f"""insert into channels (id, channel_name, container) values (
+            {await client.get_peer_id(channel_name)}, '{channel_name}', '{container}')""")
 
             # join to channel
             await client(JoinChannelRequest(await client.get_entity(channel_name)))
@@ -93,26 +95,58 @@ async def main_receive(event):
             async def check_chat(event):
                 await start_check_chat(event)
 
+        elif "add_group" in str(event.message.text):  # add_group command
+            msg = str(event.message.text).replace("!add_group ", "")
+            container_name, plus, minus = msg.split("|")
+
+            db.sql_req(f"""insert into containers (container, plus, minus) values (
+                        '{container_name}', '{plus}', '{minus}')""")
+
+
         elif "edit" in str(event.message.text):  # edit command
             msg = str(event.message.text).replace("!edit ", "")
-            channel_name, plus, minus = msg.split("|")
+            container_name, plus, minus = msg.split("|")
+
             if plus != 'default':
-                db.sql_req(f"""update channels
+                db.sql_req(f"""update containers
                 set plus='{plus}'
-                where channel_name='{channel_name}'""")
+                where container='{container_name}'""")
 
             if minus != 'default':
-                db.sql_req(f"""update channels
+                db.sql_req(f"""update containers
                                 set minus='{minus}'
-                                where channel_name='{channel_name}'""")
+                                where container='{container_name}'""")
 
-        elif "del" in str(event.message.text):  # del command
-            msg = str(event.message.text).replace("!del ", "")
+
+        elif "del_channel" in str(event.message.text):  # del_channel command
+            msg = str(event.message.text).replace("!del_channel ", "")
             channel_name = msg
             db.sql_req(f"""delete from channels where channel_name='{channel_name}'""")
 
+        elif "del_group" in str(event.message.text):  # del_group command
+            msg = str(event.message.text).replace("!del_group ", "")
+            container = msg
+            db.sql_req(f"""delete from containers where container='{container}'""")
+            db.sql_req(f"""delete from channels where container='{container}'""")
+
         elif "list" in str(event.message.text):  # list command
-            await client.send_message(main_channel, message=str(db.sql_req("""select * from channels""")))
+            for line in db.sql_req("select * from containers").fetchall():
+                container, plus, minus = line[0], line[1], line[2]
+                channels = db.sql_req(f"select channel_name from channels where container='{container}'").fetchall()
+
+                msg = f"""Группа -> {container}
+                
+Плюс-слова: {plus}
+
+Минус-слова: {minus}
+
+Подключенные к группе каналы: {", ".join([el[0] for el in channels])}"""
+
+                await client.send_message(main_channel, message=msg)
+
+            chats = db.sql_req("select chat_name from chats").fetchall()
+            msg = f"""Каналы для вывода информации на данный момент: {", ".join([el[0] for el in chats])}"""
+            await client.send_message(main_channel, message=msg)
 
         elif "add_out" in str(event.message.text):  # add_out command
             msg = str(event.message.text).replace("!add_out ", "")
@@ -120,7 +154,7 @@ async def main_receive(event):
             db.sql_req(f"""insert into chats (id, chat_name) values (
                         '{await client.get_peer_id(chat_name)}', '{chat_name}')""")
 
-        elif "list" in str(event.message.text):  # command help
+        elif "help" in str(event.message.text):  # command help
             # TODO: write good text for command help
             await client.send_message(main_channel, message="""""")
         else:
