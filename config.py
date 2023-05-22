@@ -1,6 +1,6 @@
 # telethon
-id = 28552410
-hash = '1542343743d2799f779bae0b3071a67c'
+id = -000
+hash = 'your_hash_here'
 
-main_channel = -1001957389851
+main_channel = -000
 
